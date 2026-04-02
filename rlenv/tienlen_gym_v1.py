@@ -43,6 +43,9 @@ class TienLenEnv(gym.Env):
         self.done = False
         self.accumulated_reward = 0.0
         
+        # BUG FIX: Sync card counts with actual dealt hands (in case hands are not all 13)
+        self.tracker.player_card_counts = [len(h) for h in self.hands]
+        
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         self.reset_game_state()
@@ -86,13 +89,15 @@ class TienLenEnv(gym.Env):
     def _apply_action(self, player_id: int, action_id: int):
         cards = self.action_manager.decode_action(action_id, self.hands[player_id])
         combo = Combo(cards)
+        prev_table_combo = self.tracker.current_combo # Snapshot bước BIẼN KHỚI vào tracker
         
-        # Tính thưởng / phạt trước khi State bàn cập nhật
+        # --- Event-based Rewards (tính trước khi cập nhật tracker) ---
         if combo.type in [ComboType.THREE_PAIRS, ComboType.QUAD, ComboType.FOUR_PAIRS]:
-            if player_id == 0:
-                self.accumulated_reward += 20.0 # Ta chặt Heo / chặt Hàng của máy!
-            elif self.tracker.controlling_player == 0:
-                self.accumulated_reward -= 20.0 # Oops, Agent 0 bị đối thủ đè Heo!
+            # Chặt được Heo hoặc Hàng của đối thủ
+            if player_id == 0 and prev_table_combo is not None:
+                self.accumulated_reward += 30.0 # Ta chặt đối thủ!
+            elif player_id != 0 and self.tracker.controlling_player == 0:
+                self.accumulated_reward -= 30.0 # Đối thủ chặt ta!
                 
         self.tracker.record_play(player_id, combo)
         
@@ -100,23 +105,22 @@ class TienLenEnv(gym.Env):
             for c in cards:
                 self.hands[player_id].remove(c)
                 
-            if player_id == 0:
-                self.accumulated_reward += 0.5 # Shaping Reward: Xả được bài
+            # Xóa Micro reward (0.5 nhỏ xí) — chỉ focus vào mục tiêu thắng cuốc cuối cùng
                 
         # Kiểm tra điều kiện End Game
         if len(self.hands[player_id]) == 0:
             self.done = True
             if player_id == 0:
-                # Ta về nhất, cộng Thưởng Margin (Chênh lệch)
+                # Ta về nhất --- thưởng mạnh hơn nhiều
                 leftover_cards = sum([len(h) for h in self.hands[1:4]])
-                self.accumulated_reward += 200.0 + (leftover_cards * 5.0) 
+                self.accumulated_reward += 500.0 + (leftover_cards * 10.0) 
             else:
-                # Đối thủ về nhất
-                self.accumulated_reward -= 50.0
+                # Đối thủ về nhất --- phạt nặng hơn nhiều
+                self.accumulated_reward -= 200.0
                 if len(self.hands[0]) == 13:
-                    self.accumulated_reward -= 150.0 # Bị cóng!
+                    self.accumulated_reward -= 300.0 # Bị cóng hoàn toàn!
                 heos = sum([1 for c in self.hands[0] if get_value(c) == 12])
-                self.accumulated_reward -= (heos * 15.0) # Thối Heo
+                self.accumulated_reward -= (heos * 25.0) # Thối Heo
                 
     def _next_turn(self):
         for _ in range(4):

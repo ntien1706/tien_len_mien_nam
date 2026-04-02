@@ -26,9 +26,13 @@ def train_self_play(total_timesteps: int = 1000000, time_limit_hours: float = 5.
     if os.path.exists(MODEL_PATH + ".zip"):
         print("[*] Đang tải Model cũ để tiếp tục huấn luyện tăng cường...")
         model = MaskablePPO.load(MODEL_PATH, env=env)
+        # BUG FIX: Ép ghi đè hyperparameters mới lên Model đã load
+        # (SB3 giữ nguyên hparam cũ trong .zip nếu không làm step này)
+        model.learning_rate = 0.0001
+        model.ent_coef = 0.02
+        print("[*] Đã ép cập nhật: learning_rate=0.0001, ent_coef=0.02")
     else:
         print("[+] Tạo Model MaskablePPO mới (Kiến trúc MLP 256x256x256 để tối ưu CPU)...")
-        # Sử dụng Mạng MLP đơn giản phù hợp với Action Space ~408 và chạy cực mượt trên CPU
         policy_kwargs = dict(net_arch=[256, 256, 256])
         
         model = MaskablePPO(
@@ -36,7 +40,8 @@ def train_self_play(total_timesteps: int = 1000000, time_limit_hours: float = 5.
             env,
             policy_kwargs=policy_kwargs,
             verbose=1,
-            learning_rate=0.0003,
+            learning_rate=0.0001,  # giảm xuống từ 0.0003 — học ổn định hơn
+            ent_coef=0.02,         # tăng entropy — ép AI khám phá nhiều hơn
             n_steps=2048,
             batch_size=64,
             gamma=0.99
@@ -79,7 +84,15 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--timesteps", type=int, default=5000000, help="Tổng sô timesteps cho quá trình học")
-    parser.add_argument("--time-limit", type=float, default=5.5, help="Giới hạn thời gian chạy (giờ) trước khi quá trình tự động dừng (graceful shutdown)")
+    parser.add_argument("--time-limit", type=float, default=5.5, help="Giới hạn thời gian chạy (giờ)")
+    parser.add_argument("--fresh-start", action="store_true", help="Xóa model cũ và train lại từ đầu")
     args = parser.parse_args()
+    
+    if args.fresh_start:
+        import glob
+        print("[!] --fresh-start: Xóa toàn bộ model cũ để train lại từ đầu...")
+        for f in glob.glob(os.path.join(project_root, "trained_models", "**", "*.zip"), recursive=True):
+            os.remove(f)
+            print(f"  Đã xóa: {f}")
     
     train_self_play(args.timesteps, args.time_limit)

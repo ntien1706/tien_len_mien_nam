@@ -28,9 +28,10 @@ jobs:
         pip install -r requirements.txt
         
     - name: Run Self-Play Training Loop
-      # Đặt số timestep cực lớn để loop vĩnh viễn, script sẽ tự nhận diện tắt an toàn khi chạm mốc 5.5 hours
+      # --fresh-start: xóa model cũ và bắt đầu train lại với hyperparameters đã điều chỉnh
+      # SAU KHI PUSH LẦN NÀY, XÓA FLAG --fresh-start để các vòng sau tiếp tục tích lũy
       run: |
-        python scripts/train.py --timesteps 1000000000 --time-limit 5.5
+        python scripts/train.py --timesteps 1000000000 --time-limit 5.5 --fresh-start
         
     - name: Auto-Commit & Save Model Checkpoint
       uses: stefanzweifel/git-auto-commit-action@v5
