@@ -1,0 +1,39 @@
+name: "AI Training CI/CD"
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Chạy tự động train lúc 0:00 midnight (UTC) hàng ngày
+  workflow_dispatch: # Cho phép kích hoạt bằng tay trên GitHub interface
+
+jobs:
+  train-rl-agent:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Quyền tạo commit và đẩy file Model mới lên nhánh
+      
+    steps:
+    - name: Checkout Source Code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python 3.10 Environment
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
+        cache: 'pip'
+        
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Run Self-Play Training Loop
+      # Training trên CPU có thể chậm, ta limit ở mức 200,000 timestep mỗi epoch hằng ngày để không dính timeout của GitHub
+      run: |
+        python scripts/train.py --timesteps 200000
+        
+    - name: Auto-Commit & Save Model Checkpoint
+      uses: stefanzweifel/git-auto-commit-action@v5
+      with:
+        commit_message: "🤖 Auto-checkpoint: Trí nhớ AI vừa được cập nhật thêm 200k steps"
+        file_pattern: "trained_models/best_agent.zip trained_models/checkpoints/*.zip"
+        branch: main

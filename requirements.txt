@@ -1,0 +1,5 @@
+numpy==1.26.4
+torch
+gymnasium
+stable-baselines3
+sb3-contrib
