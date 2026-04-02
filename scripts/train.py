@@ -17,7 +17,7 @@ CHECKPOINT_DIR = os.path.join(project_root, "trained_models", "checkpoints")
 def ensure_dirs():
     os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
-def train_self_play(total_timesteps: int = 1000000):
+def train_self_play(total_timesteps: int = 1000000, time_limit_hours: float = 5.5):
     ensure_dirs()
     
     # Kích hoạt Môi trường Tiền Lên
@@ -66,13 +66,20 @@ def train_self_play(total_timesteps: int = 1000000):
         
         model.save(MODEL_PATH)
         
+        # Check time limit for Graceful Shutdown
+        elapsed_time = time.time() - start_time
+        if elapsed_time > time_limit_hours * 3600:
+            print(f"\n[!] Đã đạt giới hạn thời gian chạy {time_limit_hours} giờ. Kích hoạt quá trình Lưu & Dừng an toàn (Graceful Shutdown)!")
+            break
+            
     duration = time.time() - start_time
     print(f"\n[!] Training đã xong sau {duration:.2f} giây.")
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--timesteps", type=int, default=500000, help="Tổng sô timesteps cho quá trình học")
+    parser.add_argument("--timesteps", type=int, default=5000000, help="Tổng sô timesteps cho quá trình học")
+    parser.add_argument("--time-limit", type=float, default=5.5, help="Giới hạn thời gian chạy (giờ) trước khi quá trình tự động dừng (graceful shutdown)")
     args = parser.parse_args()
     
-    train_self_play(args.timesteps)
+    train_self_play(args.timesteps, args.time_limit)

@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # Quyền tạo commit và đẩy file Model mới lên nhánh
+      actions: write # Quyền kích hoạt lại chính workflow này
       
     steps:
     - name: Checkout Source Code
@@ -27,9 +28,9 @@ jobs:
         pip install -r requirements.txt
         
     - name: Run Self-Play Training Loop
-      # Training trên CPU có thể chậm, ta limit ở mức 200,000 timestep mỗi epoch hằng ngày để không dính timeout của GitHub
+      # Đặt số timestep cực lớn để loop vĩnh viễn, script sẽ tự nhận diện tắt an toàn khi chạm mốc 5.5 hours
       run: |
-        python scripts/train.py --timesteps 200000
+        python scripts/train.py --timesteps 1000000000 --time-limit 5.5
         
     - name: Auto-Commit & Save Model Checkpoint
       uses: stefanzweifel/git-auto-commit-action@v5
@@ -37,3 +38,11 @@ jobs:
         commit_message: "🤖 Auto-checkpoint: Trí nhớ AI vừa được cập nhật thêm 200k steps"
         file_pattern: "trained_models/best_agent.zip trained_models/checkpoints/*.zip"
         branch: main
+        
+    - name: Trigger next training cycle
+      if: success() # Chỉ kích hoạt tiếp nếu session này không bị lỗi
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        echo "Kích hoạt vòng lặp Training tiếp theo 🚀"
+        gh workflow run autosave_training.yml
