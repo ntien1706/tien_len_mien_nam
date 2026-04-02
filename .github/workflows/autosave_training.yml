@@ -28,10 +28,9 @@ jobs:
         pip install -r requirements.txt
         
     - name: Run Self-Play Training Loop
-      # --fresh-start: xóa model cũ và bắt đầu train lại với hyperparameters đã điều chỉnh
-      # SAU KHI PUSH LẦN NÀY, XÓA FLAG --fresh-start để các vòng sau tiếp tục tích lũy
+      # Đã dọn dẹp xong ở lần chạy đầu, giờ để AI tự học tích lũy vô tận
       run: |
-        python scripts/train.py --timesteps 1000000000 --time-limit 5.5 --fresh-start
+        python scripts/train.py --timesteps 1000000000 --time-limit 5.5
         
     - name: Auto-Commit & Save Model Checkpoint
       uses: stefanzweifel/git-auto-commit-action@v5
