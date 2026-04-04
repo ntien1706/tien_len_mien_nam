@@ -28,9 +28,9 @@ jobs:
         pip install -r requirements.txt
         
     - name: Run Self-Play Training Loop
-      # Đã dọn dẹp xong ở lần chạy đầu, giờ để AI tự học tích lũy vô tận
+      # Đang thực hiện TẨY TỦY (fresh-start). Nhớ xóa cờ này đi sau khi push lượt đầu.
       run: |
-        python scripts/train.py --timesteps 1000000000 --time-limit 5.5
+        python scripts/train.py --timesteps 1000000000 --time-limit 5.5 --fresh-start
         
     - name: Auto-Commit & Save Model Checkpoint
       uses: stefanzweifel/git-auto-commit-action@v5

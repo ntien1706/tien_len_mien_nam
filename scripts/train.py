@@ -7,12 +7,20 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 import time
+from typing import Callable
 from sb3_contrib import MaskablePPO
 from sb3_contrib.common.maskable.policies import MaskableActorCriticPolicy
 from rlenv.tienlen_gym_v1 import TienLenEnv
 
 MODEL_PATH = os.path.join(project_root, "trained_models", "best_agent")
 CHECKPOINT_DIR = os.path.join(project_root, "trained_models", "checkpoints")
+TENSORBOARD_LOG = os.path.join(project_root, "tensor_logs")
+
+def linear_schedule(initial_value: float, final_value: float) -> Callable[[float], float]:
+    """Hàm tạo schedule tuyến tính theo progress_remaining (từ 1.0 giảm về 0.0)"""
+    def func(progress_remaining: float) -> float:
+        return progress_remaining * (initial_value - final_value) + final_value
+    return func
 
 def ensure_dirs():
     os.makedirs(CHECKPOINT_DIR, exist_ok=True)
@@ -32,7 +40,7 @@ def train_self_play(total_timesteps: int = 1000000, time_limit_hours: float = 5.
         model.ent_coef = 0.02
         print("[*] Đã ép cập nhật: learning_rate=0.0001, ent_coef=0.02")
     else:
-        print("[+] Tạo Model MaskablePPO mới (Kiến trúc MLP 256x256x256 để tối ưu CPU)...")
+        print("[+] Tạo Model MaskablePPO mới (Kiến trúc MLP 256x256x256, n_steps=4096)...")
         policy_kwargs = dict(net_arch=[256, 256, 256])
         
         model = MaskablePPO(
@@ -40,11 +48,12 @@ def train_self_play(total_timesteps: int = 1000000, time_limit_hours: float = 5.
             env,
             policy_kwargs=policy_kwargs,
             verbose=1,
-            learning_rate=0.0001,  # giảm xuống từ 0.0003 — học ổn định hơn
-            ent_coef=0.02,         # tăng entropy — ép AI khám phá nhiều hơn
-            n_steps=2048,
+            learning_rate=linear_schedule(0.0003, 0.0001), # LR giảm dần
+            ent_coef=linear_schedule(0.05, 0.01),          # Entropy giảm dần
+            n_steps=4096,
             batch_size=64,
-            gamma=0.99
+            gamma=0.99,
+            tensorboard_log=TENSORBOARD_LOG
         )
         
     chunk_timesteps = min(50000, total_timesteps)
@@ -90,9 +99,15 @@ if __name__ == "__main__":
     
     if args.fresh_start:
         import glob
-        print("[!] --fresh-start: Xóa toàn bộ model cũ để train lại từ đầu...")
+        import shutil
+        print("[!] --fresh-start: Dọn dẹp sạch dự án (models, checkpoints, logs)...")
+        # Xóa zips
         for f in glob.glob(os.path.join(project_root, "trained_models", "**", "*.zip"), recursive=True):
             os.remove(f)
-            print(f"  Đã xóa: {f}")
+            print(f"  Đã xóa model: {f}")
+        # Xóa logs
+        if os.path.exists(TENSORBOARD_LOG):
+            shutil.rmtree(TENSORBOARD_LOG)
+            print(f"  Đã dọn dẹp thư mục: {TENSORBOARD_LOG}")
     
     train_self_play(args.timesteps, args.time_limit)

@@ -105,22 +105,26 @@ class TienLenEnv(gym.Env):
             for c in cards:
                 self.hands[player_id].remove(c)
                 
-            # Xóa Micro reward (0.5 nhỏ xí) — chỉ focus vào mục tiêu thắng cuốc cuối cùng
+            if player_id == 0:
+                self.accumulated_reward += (len(cards) * 0.01) # Thưởng RẤT nhỏ cho mỗi lá xả ra để tránh trường hợp đơ/cóng
                 
         # Kiểm tra điều kiện End Game
         if len(self.hands[player_id]) == 0:
             self.done = True
             if player_id == 0:
-                # Ta về nhất --- thưởng mạnh hơn nhiều
-                leftover_cards = sum([len(h) for h in self.hands[1:4]])
-                self.accumulated_reward += 500.0 + (leftover_cards * 10.0) 
+                # Ta về nhất --- Thưởng Win/Loss: +10
+                self.accumulated_reward += 10.0 
             else:
-                # Đối thủ về nhất --- phạt nặng hơn nhiều
-                self.accumulated_reward -= 200.0
-                if len(self.hands[0]) == 13:
-                    self.accumulated_reward -= 300.0 # Bị cóng hoàn toàn!
+                # Đối thủ về nhất --- Phạt Thua: -10
+                self.accumulated_reward -= 10.0
+                
+                # Phạt Thối Heo/Hàng (Heo value == 12, check đơn giản là đếm heo)
                 heos = sum([1 for c in self.hands[0] if get_value(c) == 12])
-                self.accumulated_reward -= (heos * 25.0) # Thối Heo
+                self.accumulated_reward -= (heos * 5.0) # -5 điểm mỗi bài quý chưa đánh
+                
+                # Để ý nếu tay còn nguyên 13 lá (bị cóng)
+                if len(self.hands[0]) == 13:
+                    self.accumulated_reward -= 5.0
                 
     def _next_turn(self):
         for _ in range(4):
@@ -135,6 +139,10 @@ class TienLenEnv(gym.Env):
         if not mask[action]:
             # Đề phòng Agent xuất ra invalid do Bug
             return self._get_obs(), -500.0, True, False, {"error": "invalid_move_punishment"}
+            
+        # Phạt "Bỏ lượt vô lý": Chọn Pass (0) nhưng thật ra vẫn còn quyền đánh bài khác (sum mask > 1)
+        if action == 0 and sum(mask) > 1:
+            self.accumulated_reward -= 0.5
             
         self._apply_action(0, action)
         
